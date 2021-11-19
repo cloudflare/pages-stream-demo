@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-100">
+  <head>
+    <meta charset="utf-8" />
+    <title>Stream on Pages</title>
+    <meta name="description" content="Cloudflare Stream player" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/alpinejs" defer></script>
+    <style>
+      @keyframes progress-indeterminate {
+        0% {
+          width: 30%;
+          left: -40%;
+        }
+        60% {
+          left: 100%;
+          width: 100%;
+        }
+        to {
+          left: 100%;
+          width: 0;
+        }
+      }
+      .progressbar {
+        transition: width 0.5s ease;
+      }
+      .indeterminate .progressbar {
+        animation: progress-indeterminate 1s ease infinite;
+      }
+    </style>
+  </head>
+  <body>
+      <div
+        class="min-h-full"
+        x-data="{
+            signedId: undefined,
+            videos: [],
+            loading: false,
+            title: undefined
+        }"
+        x-init="
+          loading = true
+          if (window.location.pathname === '/') {
+            title = 'Videos'
+            fetch('/api/videos', {headers: {'accept': 'application/json'}})
+              .then(x => x.json())
+              .then(data => {
+                  videos = data
+                  loading = false
+              })
+          } else if (window.location.pathname.includes('/player/')) {
+            title = 'Video Player'
+            id = window.location.pathname.substring(window.location.pathname.lastIndexOf('/') + 1)
+            if (id.includes('.')) {
+              signedId = id
+              loading = false
+            } else {
+              fetch('/api/videos/' + id, {headers: {'accept': 'application/json'}})
+                .then(x => x.json())
+                .then(data => {
+                    signedId = data.signedId
+                    loading = false
+              })
+            }
+          }
+        "
+      >
+        <div class="bg-gray-800 pb-32">
+          <nav class="bg-gray-800">
+            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+              
+                <div class="flex items-center justify-between h-16 px-4 sm:px-0">
+                  <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                      <img class="h-8 w-8" src="https://tailwindui.com/img/logos/workflow-mark-indigo-500.svg" alt="Workflow">
+                    </div>
+                    <div class="md:block">
+                      <div class="ml-10 flex items-baseline space-x-4">
+                        <!-- Current: "bg-gray-900 text-white", Default: "text-gray-300 hover:bg-gray-700 hover:text-white" -->
+                        <a href="/" class="bg-gray-900 text-white px-3 py-2 rounded-md text-sm font-medium" aria-current="page">Videos</a>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="md:block">
+                    <div class="ml-4 flex items-center md:ml-6">
+                      <a href="/admin" class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Admin</a>
+                    </div>
+                  </div>
+                </div>
+
+                <template x-if="loading">
+                  <div 
+                    class="w-auto bg-gray-700 h-0.5 relative overflow-hidden indeterminate"
+                  >
+                    <div
+                      class="h-full progressbar bg-indigo-800 absolute top-0 indeterminate"
+                      role="progressbar"
+                      style="width: 0%"
+                      aria-valuenow="0"
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                    >
+                      <span class="flex items-center h-full">
+                        <slot></slot>
+                      </span>
+                    </div>
+                  </div>
+                </template>
+                <template x-if="!loading">
+                  <div 
+                    class="w-auto bg-gray-700 h-0.5 relative overflow-hidden indeterminate"
+                  >
+                </template>
+              
+            </div>
+          </nav>
+          <header class="py-10">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <h1 x-text="title" class="text-3xl font-bold text-white"></h1>
+            </div>
+          </header>
+        </div>
+      
+        <main class="-mt-32">
+          <div class="max-w-7xl mx-auto pb-12 px-4 sm:px-6 lg:px-8">
+
+            <div class="bg-white rounded-lg shadow px-5 py-6 sm:px-6">
+              <template x-if="!signedId">
+                <ul role="list" class="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 sm:gap-x-6 lg:grid-cols-4 xl:gap-x-8">
+                  <template x-for="(video, index) in videos" :key="index">
+                      <li class="relative">
+                        <div 
+                          @click="window.location.href = '/player/'+video.uid" 
+                          class="cursor-pointer group block w-full aspect-w-10 aspect-h-7 rounded-lg bg-gray-100 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-gray-100 focus-within:ring-indigo-500 overflow-hidden"
+                        >
+                          <img :src="video.thumbnail" alt="" class="object-cover pointer-events-none group-hover:opacity-75">
+                        </div>
+                        <p @click="window.location.href = '/player/'+video.uid" x-text="video.meta.name" class="cursor-pointer mt-2 block text-sm font-medium text-gray-900 truncate hover:underline"></p>
+                        <p x-show="video.status.state === 'ready'" x-text="'Duration: ' + video.duration + 's'" class="block text-xs font-medium text-gray-500 pointer-events-none"></p>
+                        <p x-show="video.status.state === 'live-inprogress'" class="block text-xs font-medium text-red-500 pointer-events-none">Live stream</p>
+                      </li>
+                  </template>
+                </ul>
+              </template>
+      
+              <template x-if="signedId">
+                <iframe
+                    id="cf_stream_player"
+                    :src="'https://iframe.videodelivery.net/' + signedId + '?autoplay=true'"
+                    style="border: none;"
+                    height="720"
+                    width="100%"
+                    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                    allowfullscreen="true"
+                ></iframe>
+              </template>
+            </div>
+
+          </div>
+        </main>
+      </div>
+
+    </body>
+</html>

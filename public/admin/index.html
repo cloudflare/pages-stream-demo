@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-100">
+  <head>
+    <meta charset="utf-8" />
+    <title>Admin - Stream on Pages</title>
+    <meta name="description" content="Cloudflare Stream player" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/alpinejs" defer></script>
+    <script>
+      async function getOneTimeUploadUrl() {
+          const res = await fetch('/api/admin/videos', {method: 'POST', headers: {'accept': 'application/json'}})
+          const upload = await res.json()
+          return upload.uploadURL
+      }
+
+      async function uploadVideo() {
+          const videoInput = document.getElementById("video");
+
+          const oneTimeUploadUrl = await getOneTimeUploadUrl();
+          const video = videoInput.files[0];
+          const formData = new FormData();
+          formData.append("file", video);
+
+          const uploadResult = await fetch(oneTimeUploadUrl, {
+              method: "POST",
+              body: formData,
+          })
+      }
+    </script>
+    <style>
+      @keyframes progress-indeterminate {
+        0% {
+          width: 30%;
+          left: -40%;
+        }
+        60% {
+          left: 100%;
+          width: 100%;
+        }
+        to {
+          left: 100%;
+          width: 0;
+        }
+      }
+      .progressbar {
+        transition: width 0.5s ease;
+      }
+      .indeterminate .progressbar {
+        animation: progress-indeterminate 1s ease infinite;
+      }
+    </style>
+  </head>
+  <body>
+      <div
+        class="min-h-full"
+        @reload="
+        loading = true
+        videosPromise = fetch('/api/admin/videos', {headers: {'accept': 'application/json'}})
+            .then(x => x.json())
+            .then(data => {
+                videos = data
+            })
+        liveInputsPromise = fetch('/api/admin/live_inputs', )
+          .then(x => x.json())
+          .then(data => {
+            liveInputs = data
+          })
+
+        Promise.all([
+          videosPromise, liveInputsPromise
+        ]).then(x => loading = false)
+
+        "
+        @upload="
+          loading = true
+          uploadVideo().then(() => $dispatch('reload'))
+        "
+        x-data="{
+            user: {},
+            videos: [],
+            liveInputs: [],
+            loading: false,
+        }"
+        x-init="
+            loading = true
+            fetch('/api/admin/profile', {headers: {'accept': 'application/json'}})
+              .then(x => x.json())
+              .then(data => {
+                  user = data
+              })                
+            $nextTick(() => {
+                $dispatch('reload')
+            });
+        "
+      >
+        <div class="bg-gray-800 pb-32">
+          <nav class="bg-gray-800">
+            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+              <div class="flex items-center justify-between h-16 px-4 sm:px-0">
+                <div class="flex items-center">
+                  <div class="flex-shrink-0">
+                    <img class="h-8 w-8" src="https://tailwindui.com/img/logos/workflow-mark-indigo-500.svg" alt="Workflow">
+                  </div>
+                  <div class="md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                      <!-- Current: "bg-gray-900 text-white", Default: "text-gray-300 hover:bg-gray-700 hover:text-white" -->
+                      <a href="/" class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Back to Homepage</a>
+                    </div>
+                  </div>
+                </div>
+
+                <template x-if="user && user.email">
+                  <div class="md:block">
+                    <div class="ml-4 flex items-center md:ml-6">
+                      <span x-text="user.email" class="text-gray-300 px-3 py-2 text-sm font-medium"></span>
+                    </div>
+                  </div>
+                </template>
+
+              </div>
+              <template x-if="loading">
+                <div 
+                  class="w-auto bg-gray-700 h-0.5 relative overflow-hidden indeterminate"
+                >
+                  <div
+                    class="h-full progressbar bg-indigo-800 absolute top-0 indeterminate"
+                    role="progressbar"
+                    style="width: 0%"
+                    aria-valuenow="0"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                  >
+                    <span class="flex items-center h-full">
+                      <slot></slot>
+                    </span>
+                  </div>
+                </div>
+              </template>
+              <template x-if="!loading">
+                <div 
+                  class="w-auto bg-gray-700 h-0.5 relative overflow-hidden indeterminate"
+                >
+              </template>
+            </div>
+          </nav>
+          <header class="py-10">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <h1 class="text-3xl font-bold text-white">
+                Cloudflare Stream Admin
+              </h1>
+            </div>
+          </header>
+        </div>
+      
+        <main class="-mt-32">
+          <div class="max-w-7xl mx-auto pb-12 px-4 sm:px-6 lg:px-8">
+            
+            <div class="bg-white rounded-lg shadow px-5 py-6 sm:px-6">
+              <div class="py-5">
+                <label for="video">
+                  <span class="text-xl bg-green-500 m-2 hover:bg-green-700 text-white font-bold py-2 px-4 rounded cursor-pointer">
+                    Upload a video
+                  </span>
+                  <input x-on:change="$dispatch('upload')" id="video" type="file" accept="video/*" class="sr-only">
+                </label>
+
+                <span class="text-xl bg-blue-500 m2 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded cursor-pointer"
+                  @click="
+                    loading = true
+                    fetch('/api/admin/live_inputs', {method: 'POST'}).then(x => $dispatch('reload'))
+                  "
+                >
+                  Create a live input
+                </span>
+              </div>
+
+              <template x-if="liveInputs && liveInputs.length">
+                <div class="mb-10">
+                  <h2 class="text-2xl font-bold">Live inputs</h2>
+                  <div class="flex flex-col">
+                    <div class="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+                      <div class="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
+                        <div class="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+                          <table class="table-auto min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                              <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Name
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  RTMPS URL
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  RTMPS Key
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Last Modified
+                                </th>
+                                <th scope="col" class="relative px-6 py-3">
+                                  <span class="sr-only">Edit</span>
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                              <template x-for="(live_input, index) in liveInputs" :key="live_input.uid">
+                                <tr x-data="{ name: live_input.meta.name }">
+                                  <td class="w-full px-2 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    <input 
+                                      class="shadow appearance-none border rounded w-full py-2 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" 
+                                      placeholder="stream name"
+                                      :value="live_input.meta.name"
+                                      @input="name = $event.target.value"
+                                    />
+                                  </td>
+                                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <span>rtmps://live.cloudflare.com:443/live/$key</span>
+                                  </td>
+                                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <span class="cursor-pointer" @click="
+                                      loading = true
+                                      fetch('/api/admin/live_inputs/'+live_input.uid, {method: 'GET'}).then(x => x.json()).then(x => alert(x.rtmps.streamKey)).then(() => $dispatch('reload'))
+                                    ">Show key</span>
+                                  </td>
+                                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <span x-text="live_input.modified"></span>
+                                  </td>
+                                  <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <a 
+                                      @click.prevent="
+                                        loading = true
+                                        fetch('/api/admin/live_inputs/'+live_input.uid, {method: 'PATCH', body: JSON.stringify({ ...video.meta, name })}).then(x => $dispatch('reload'))
+                                      " 
+                                      href="#" class="text-indigo-600 hover:text-indigo-900">Save</a>
+                                      -
+                                    <a 
+                                      @click.prevent="
+                                        if(confirm('Are you sure?')) {
+                                          loading = true
+                                          fetch('/api/admin/live_inputs/'+live_input.uid, {method: 'DELETE'}).then(x => $dispatch('reload'))
+                                        }
+                                      " 
+                                      href="#" class="text-red-600 hover:text-red-900">Delete</a>
+                                  </td>
+                                </tr>
+                              </template>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <template x-if="videos && videos.length">
+                <div>
+                  <h2 class="text-2xl font-bold">Videos</h2>
+                  <div class="flex flex-col">
+                    <div class="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+                      <div class="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
+                        <div class="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+                          <table class="table-auto min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                              <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Name
+                                </th>                            
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Status
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Duration
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Last Modified
+                                </th>
+                                <th scope="col" class="relative px-6 py-3">
+                                  <span class="sr-only">Edit</span>
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                              <template x-for="(video, index) in videos" :key="video.uid + video.meta.visibility">
+                                <tr x-data="{ name: video.meta.name }">
+                                  <td class="w-full px-2 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    <input 
+                                      class="shadow appearance-none border rounded w-full py-2 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" 
+                                      placeholder="video name"
+                                      :value="video.meta.name"
+                                      @input="name = $event.target.value"
+                                    />
+                                  </td>
+                                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <span x-text="video.status.state"></span>
+                                  </td>
+                                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <span x-text="video.duration + 's'"></span>
+                                  </td>
+                                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <span x-text="video.modified"></span>
+                                  </td>
+                                  <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <a 
+                                      x-text="video.meta.visibility === 'public' ? 'Make private' : 'Make public'"
+                                      @click.prevent="
+                                        loading = true
+                                        fetch('/api/admin/videos/'+video.uid, {method: 'PATCH', body: JSON.stringify({ ...video.meta, name, visibility: video.meta.visibility === 'public' ? 'private' : 'public' })}).then(x => $dispatch('reload'))
+                                        " 
+                                      href="#" :class="video.meta.visibility === 'public' ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'"></a>
+                                      -
+                                    <a 
+                                      :href="'/player/' + video.signedId" target="_blank" class="text-gray-600 hover:text-gray-900">Open</a>
+                                      -
+                                    <a 
+                                      @click.prevent="
+                                        loading = true
+                                        fetch('/api/admin/videos/'+video.uid, {method: 'PATCH', body: JSON.stringify({ ...video.meta, name })}).then(x => $dispatch('reload'))
+                                      " 
+                                      href="#" class="text-indigo-600 hover:text-indigo-900">Save</a>
+                                      -
+                                    <a 
+                                      @click.prevent="
+                                        if(confirm('Are you sure?')) {
+                                          loading = true
+                                          fetch('/api/admin/videos/'+video.uid, {method: 'DELETE'}).then(x => $dispatch('reload'))
+                                        }
+                                      " 
+                                      href="#" class="text-red-600 hover:text-red-900">Delete</a>
+                                  </td>
+                                </tr>
+                              </template>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+          </div>
+        </main>
+      </div>
+
+    </body>
+</html>

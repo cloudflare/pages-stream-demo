@@ -1,0 +1,8 @@
+node_modules
+dist/*
+.mf
+.env
+.envrc
+yarn.lock 
+.pages
+.DS_Store
